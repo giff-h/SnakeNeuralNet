@@ -40,15 +40,17 @@ class Board:
 
     def board_as_ints(self, food: bool=True):
         board = [list(map(int, row)) for row in self.board]
+        head = self.snake.head()
+        board[head[1]][head[0]] = 4
         if food:
             food_pos = self.get_food()
-            board[food_pos[1]][food_pos[0]] = 8
+            board[food_pos[1]][food_pos[0]] = 5
         return board
 
     def drop_snake_part(self, pos: Position):
         self.set_pos(pos, False)
 
-    def move_snake(self, direction: int) -> bool:
+    def move(self, direction: int) -> bool:
         head = self.snake.head()
         if direction == 0:  # right
             head = (head[0] + 1, head[1])
@@ -64,7 +66,12 @@ class Board:
         if self.snake.collided(head):
             raise GameOver("You ate yourself")
 
-        return self.food.eaten(head)
+        consumed = self.food.was_food_eaten(head)
+        self.snake.move(head, consumed)
+        self.set_pos(head, True)
+        if consumed:
+            self.update_food()
+        return consumed
 
     def create_food(self):
         self.food = Food(self)
@@ -80,7 +87,7 @@ class Board:
 
 class Snake:
     DEFAULT_BODY = [(i, 0) for i in reversed(range(5))]  # top row
-    DEFAULT_GROW = 1
+    DEFAULT_GROW = 2
 
     def __init__(self, board: Board, body: List[Position], grow: int):
         self.board = board
@@ -93,8 +100,8 @@ class Snake:
     def head(self) -> Position:
         return self.body[0]
 
-    def move(self, direction: int) -> bool:
-        consumed = self.board.move_snake(direction)
+    def move(self, pos: Position, consumed: bool):
+        self.body.insert(0, pos)
         if consumed:
             self.growth_left += self.grow
 
@@ -103,16 +110,11 @@ class Snake:
         else:
             self.board.drop_snake_part(self.body.pop())
 
-        if consumed:
-            self.board.update_food()
-
-        return consumed
-
     def move_to(self, pos: Position):
         self.body.insert(0, pos)
 
     def collided(self, pos: Position) -> bool:
-        return pos in self.body and not self.consumed_tail(pos)
+        return pos in self.body and self.consumed_tail(pos)
 
     def consumed_tail(self, pos: Position) -> bool:
         return self.body[-1] == pos and self.growth_left
@@ -126,5 +128,5 @@ class Food:
     def set_pos(self, pos: Position):
         self.pos = pos
 
-    def eaten(self, pos: Position) -> bool:
+    def was_food_eaten(self, pos: Position) -> bool:
         return self.pos == pos
